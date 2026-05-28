@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TermuxHost</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111;
+    --border: #222;
+    --green: #00ff88;
+    --green-dim: #00cc66;
+    --red: #ff4455;
+    --yellow: #ffcc00;
+    --text: #e0e0e0;
+    --muted: #555;
+    --font: 'Courier New', monospace;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+
+  /* AUTH */
+  #auth { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .auth-box { background: var(--surface); border: 1px solid var(--border); padding: 40px; width: 100%; max-width: 380px; }
+  .auth-box h1 { color: var(--green); font-size: 22px; margin-bottom: 6px; }
+  .auth-box p { color: var(--muted); font-size: 12px; margin-bottom: 28px; }
+  .tabs { display: flex; gap: 2px; margin-bottom: 24px; }
+  .tab { flex: 1; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--muted); cursor: pointer; font-family: var(--font); font-size: 13px; text-align: center; transition: all .15s; }
+  .tab.active { background: var(--green); color: #000; border-color: var(--green); font-weight: bold; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .form-group input { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: var(--font); font-size: 14px; outline: none; transition: border .15s; }
+  .form-group input:focus { border-color: var(--green); }
+  .btn { width: 100%; padding: 11px; background: var(--green); color: #000; border: none; font-family: var(--font); font-size: 14px; font-weight: bold; cursor: pointer; transition: background .15s; }
+  .btn:hover { background: var(--green-dim); }
+  .btn.danger { background: var(--red); color: #fff; }
+  .btn.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+  .btn.secondary:hover { border-color: var(--green); color: var(--green); }
+  .btn.sm { padding: 5px 10px; font-size: 12px; width: auto; }
+  .error-msg { color: var(--red); font-size: 12px; margin-top: 12px; text-align: center; }
+
+  /* APP */
+  #app { display: none; }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; align-items: center; justify-content: space-between; height: 50px; }
+  .topbar .logo { color: var(--green); font-size: 16px; font-weight: bold; }
+  .topbar .right { display: flex; align-items: center; gap: 16px; }
+  .topbar .user { font-size: 12px; color: var(--muted); }
+  .topbar .logout { background: none; border: none; color: var(--muted); cursor: pointer; font-family: var(--font); font-size: 12px; }
+  .topbar .logout:hover { color: var(--red); }
+
+  .layout { display: flex; height: calc(100vh - 50px); }
+  .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+  .sidebar-section { padding: 12px 16px 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .sidebar-item { padding: 9px 16px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-left: 2px solid transparent; transition: all .1s; }
+  .sidebar-item:hover { background: var(--bg); color: var(--green); }
+  .sidebar-item.active { background: var(--bg); color: var(--green); border-left-color: var(--green); }
+  .sidebar-item .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .sidebar-item .dot.running { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .sidebar-item .dot.error { background: var(--red); }
+  .sidebar-add { margin: 12px; }
+
+  .main { flex: 1; overflow-y: auto; padding: 24px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* STATS */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); padding: 16px; }
+  .stat-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .stat-card .value { font-size: 24px; color: var(--green); font-weight: bold; }
+  .stat-card .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* PROJECT DETAIL */
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+  .page-header h2 { font-size: 18px; color: var(--green); }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .badge { display: inline-block; padding: 2px 8px; font-size: 11px; border: 1px solid; border-radius: 2px; }
+  .badge.running { color: var(--green); border-color: var(--green); }
+  .badge.stopped { color: var(--muted); border-color: var(--muted); }
+  .badge.error { color: var(--red); border-color: var(--red); }
+
+  .tabs-inner { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  .tab-inner { padding: 8px 16px; font-size: 13px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; font-family: var(--font); background: none; border-top: none; border-left: none; border-right: none; }
+  .tab-inner.active { color: var(--green); border-bottom-color: var(--green); }
+  .tab-inner:hover { color: var(--text); }
+
+  /* LOGS */
+  .log-box { background: #000; border: 1px solid var(--border); padding: 12px; height: 320px; overflow-y: auto; font-size: 12px; line-height: 1.6; }
+  .log-line { white-space: pre-wrap; word-break: break-all; }
+  .log-line.error, .log-line.stderr { color: var(--red); }
+  .log-line.warn { color: var(--yellow); }
+  .log-line.info { color: var(--text); }
+  .log-line.stdout { color: #aaa; }
+
+  /* FILES */
+  .file-toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+  .file-toolbar input[type=text] { flex: 1; padding: 7px 10px; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: var(--font); font-size: 13px; outline: none; min-width: 120px; }
+  .file-toolbar input:focus { border-color: var(--green); }
+  .file-list { background: var(--surface); border: 1px solid var(--border); margin-bottom: 16px; }
+  .file-entry { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .file-entry:last-child { border-bottom: none; }
+  .file-entry .name { cursor: pointer; }
+  .file-entry .name:hover { color: var(--green); }
+  .file-entry .dir { color: var(--yellow); }
+  .file-editor { margin-top: 12px; }
+  .file-editor label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .file-editor textarea { width: 100%; height: 280px; background: #000; border: 1px solid var(--border); color: var(--text); font-family: var(--font); font-size: 13px; padding: 12px; outline: none; resize: vertical; }
+  .file-editor textarea:focus { border-color: var(--green); }
+
+  /* ENV */
+  .env-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .env-row input { flex: 1; padding: 7px 10px; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: var(--font); font-size: 13px; outline: none; }
+  .env-row input:focus { border-color: var(--green); }
+  .env-row button { padding: 7px 10px; background: none; border: 1px solid var(--border); color: var(--red); cursor: pointer; font-size: 14px; }
+
+  /* TERMINAL */
+  .terminal { background: #000; border: 1px solid var(--border); padding: 12px; }
+  .terminal-output { height: 240px; overflow-y: auto; font-size: 12px; line-height: 1.6; margin-bottom: 10px; white-space: pre-wrap; word-break: break-all; }
+  .terminal-input { display: flex; gap: 8px; }
+  .terminal-input span { color: var(--green); }
+  .terminal-input input { flex: 1; background: none; border: none; color: var(--text); font-family: var(--font); font-size: 13px; outline: none; }
+
+  /* CREATE */
+  .card { background: var(--surface); border: 1px solid var(--border); padding: 20px; max-width: 480px; }
+  .card h3 { color: var(--green); margin-bottom: 16px; font-size: 15px; }
+  select { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: var(--font); font-size: 14px; outline: none; }
+  select:focus { border-color: var(--green); }
+
+  .section-title { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; margin-top: 24px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="auth">
+  <div class="auth-box">
+    <h1>[ TermuxHost ]</h1>
+    <p>Self-hosted code runner on Termux</p>
+    <div class="tabs">
+      <div class="tab active" onclick="switchAuthTab('login')">Login</div>
+      <div class="tab" onclick="switchAuthTab('register')">Register</div>
+    </div>
+    <div id="login-form">
+      <div class="form-group"><label>Username</label><input id="l-user" type="text" placeholder="username" autocomplete="username"></div>
+      <div class="form-group"><label>Password</label><input id="l-pass" type="password" placeholder="password" autocomplete="current-password"></div>
+      <button class="btn" onclick="doLogin()">Login →</button>
+    </div>
+    <div id="register-form" style="display:none">
+      <div class="form-group"><label>Username</label><input id="r-user" type="text" placeholder="username"></div>
+      <div class="form-group"><label>Email (optional)</label><input id="r-email" type="email" placeholder="you@gmail.com"></div>
+      <div class="form-group"><label>Password</label><input id="r-pass" type="password" placeholder="password"></div>
+      <button class="btn" onclick="doRegister()">Register →</button>
+    </div>
+    <div id="auth-error" class="error-msg"></div>
+  </div>
+</div>
+
+<!-- APP SCREEN -->
+<div id="app">
+  <div class="topbar">
+    <div class="logo">▸ TermuxHost</div>
+    <div class="right">
+      <span class="user" id="topbar-user"></span>
+      <button class="logout" onclick="logout()">[ logout ]</button>
+    </div>
+  </div>
+  <div class="layout">
+    <div class="sidebar">
+      <div class="sidebar-section">Navigation</div>
+      <div class="sidebar-item active" onclick="showPage('dashboard')" id="nav-dashboard">⬡ Dashboard</div>
+      <div class="sidebar-item" onclick="showPage('create')" id="nav-create">+ New Project</div>
+      <div class="sidebar-section" style="margin-top:8px">Projects</div>
+      <div id="project-list"></div>
+      <div class="sidebar-add">
+        <button class="btn secondary sm" style="width:100%" onclick="showPage('create')">+ New</button>
+      </div>
+    </div>
+    <div class="main">
+
+      <!-- DASHBOARD -->
+      <div class="page active" id="page-dashboard">
+        <div class="page-header"><h2>Dashboard</h2><button class="btn secondary sm" onclick="loadStats()">↻ Refresh</button></div>
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card"><div class="label">CPU</div><div class="value" id="s-cpu">—</div></div>
+          <div class="stat-card"><div class="label">Memory</div><div class="value" id="s-mem">—</div><div class="sub" id="s-mem-sub"></div></div>
+          <div class="stat-card"><div class="label">Uptime</div><div class="value" id="s-uptime">—</div></div>
+          <div class="stat-card"><div class="label">Projects</div><div class="value" id="s-projects">—</div><div class="sub" id="s-running"></div></div>
+        </div>
+        <div class="section-title">All Projects</div>
+        <div id="all-projects"></div>
+      </div>
+
+      <!-- CREATE -->
+      <div class="page" id="page-create">
+        <div class="page-header"><h2>New Project</h2></div>
+        <div class="card">
+          <h3>Project Details</h3>
+          <div class="form-group"><label>Name</label><input id="c-name" type="text" placeholder="my-app"></div>
+          <div class="form-group"><label>Description</label><input id="c-desc" type="text" placeholder="optional"></div>
+          <div class="form-group"><label>Runtime</label>
+            <select id="c-runtime">
+              <option value="nodejs">Node.js</option>
+              <option value="python">Python</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Entry Point</label><input id="c-entry" type="text" placeholder="index.js"></div>
+          <div class="form-group"><label>Memory Limit (MB)</label><input id="c-mem" type="number" value="256"></div>
+          <button class="btn" onclick="createProject()" style="margin-top:8px">Create Project →</button>
+          <div id="create-error" class="error-msg"></div>
+        </div>
+      </div>
+
+      <!-- PROJECT DETAIL -->
+      <div class="page" id="page-project">
+        <div class="page-header">
+          <div style="display:flex;align-items:center;gap:12px">
+            <h2 id="proj-name">Project</h2>
+            <span id="proj-status" class="badge">—</span>
+          </div>
+          <div class="actions">
+            <button class="btn sm" onclick="projectAction('start')">▶ Start</button>
+            <button class="btn sm secondary" onclick="projectAction('stop')">■ Stop</button>
+            <button class="btn sm secondary" onclick="projectAction('restart')">↻ Restart</button>
+            <button class="btn sm danger" onclick="deleteProject()">✕ Delete</button>
+          </div>
+        </div>
+
+        <div class="tabs-inner">
+          <button class="tab-inner active" onclick="switchTab('logs')">Logs</button>
+          <button class="tab-inner" onclick="switchTab('files')">Files</button>
+          <button class="tab-inner" onclick="switchTab('env')">Env Vars</button>
+          <button class="tab-inner" onclick="switchTab('terminal')">Terminal</button>
+        </div>
+
+        <!-- LOGS TAB -->
+        <div id="tab-logs">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <span style="font-size:12px;color:var(--muted)">Last 100 lines</span>
+            <button class="btn secondary sm" onclick="loadLogs()">↻ Refresh</button>
+          </div>
+          <div class="log-box" id="log-box"></div>
+        </div>
+
+        <!-- FILES TAB -->
+        <div id="tab-files" style="display:none">
+          <div class="file-toolbar">
+            <span style="font-size:12px;color:var(--muted)" id="current-path">/</span>
+            <input type="text" id="new-file-name" placeholder="filename.js">
+            <button class="btn secondary sm" onclick="createFile()">+ New File</button>
+            <button class="btn secondary sm" onclick="uploadFile()">↑ Upload</button>
+            <input type="file" id="file-upload-input" style="display:none" onchange="handleFileUpload(event)">
+          </div>
+          <div class="file-list" id="file-list"></div>
+          <div class="file-editor" id="file-editor" style="display:none">
+            <label id="editor-filename">Editing: </label>
+            <textarea id="editor-content" spellcheck="false"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="btn sm" onclick="saveFile()">Save</button>
+              <button class="btn secondary sm" onclick="closeEditor()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ENV TAB -->
+        <div id="tab-env" style="display:none">
+          <div id="env-rows"></div>
+          <button class="btn secondary sm" onclick="addEnvRow()" style="margin-bottom:16px">+ Add Variable</button>
+          <br>
+          <button class="btn sm" onclick="saveEnv()">Save Env Vars</button>
+          <div id="env-msg" class="error-msg" style="color:var(--green)"></div>
+        </div>
+
+        <!-- TERMINAL TAB -->
+        <div id="tab-terminal" style="display:none">
+          <div class="terminal">
+            <div class="terminal-output" id="term-output">$ Ready\n</div>
+            <div class="terminal-input">
+              <span>$</span>
+              <input id="term-input" type="text" placeholder="enter command..." onkeydown="if(event.key==='Enter')runCmd()">
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <div class="section-title">Install Packages</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input id="pkg-input" type="text" placeholder="express axios dotenv" style="flex:1;padding:7px 10px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--font);font-size:13px;outline:none;min-width:160px">
+              <button class="btn sm" onclick="installPkgs()">Install</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'https://cattail-automated-lurch.ngrok-free.dev/api';
+let token = localStorage.getItem('txh_token');
+let user = JSON.parse(localStorage.getItem('txh_user') || 'null');
+let currentProject = null;
+let currentTab = 'logs';
+let currentFilePath = '/';
+let editingFile = null;
+
+// ─── INIT ───────────────────────────────────────────────────
+if (token && user) showApp();
+
+async function api(method, path, body) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': '1' }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(API + path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+  return data;
+}
+
+// ─── AUTH ────────────────────────────────────────────────────
+function switchAuthTab(tab) {
+  document.querySelectorAll('.tabs .tab').forEach((t, i) => t.classList.toggle('active', (i === 0) === (tab === 'login')));
+  document.getElementById('login-form').style.display = tab === 'login' ? '' : 'none';
+  document.getElementById('register-form').style.display = tab === 'register' ? '' : 'none';
+  document.getElementById('auth-error').textContent = '';
+}
+
+async function doLogin() {
+  const username = document.getElementById('l-user').value.trim();
+  const password = document.getElementById('l-pass').value;
+  try {
+    const data = await api('POST', '/auth/login', { username, password });
+    token = data.token; user = data.user;
+    localStorage.setItem('txh_token', token);
+    localStorage.setItem('txh_user', JSON.stringify(user));
+    showApp();
+  } catch (e) { document.getElementById('auth-error').textContent = e.message; }
+}
+
+async function doRegister() {
+  const username = document.getElementById('r-user').value.trim();
+  const email = document.getElementById('r-email').value.trim();
+  const password = document.getElementById('r-pass').value;
+  try {
+    const data = await api('POST', '/auth/register', { username, password, email: email || undefined });
+    token = data.token; user = data.user;
+    localStorage.setItem('txh_token', token);
+    localStorage.setItem('txh_user', JSON.stringify(user));
+    showApp();
+  } catch (e) { document.getElementById('auth-error').textContent = e.message; }
+}
+
+function logout() {
+  localStorage.removeItem('txh_token'); localStorage.removeItem('txh_user');
+  token = null; user = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth').style.display = 'flex';
+}
+
+// ─── APP ─────────────────────────────────────────────────────
+function showApp() {
+  document.getElementById('auth').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('topbar-user').textContent = user?.username || '';
+  loadProjects();
+  loadStats();
+}
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+  document.getElementById('page-' + name)?.classList.add('active');
+  document.getElementById('nav-' + name)?.classList.add('active');
+}
+
+// ─── STATS ───────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const s = await api('GET', '/stats');
+    document.getElementById('s-cpu').textContent = s.cpu.toFixed(1) + '%';
+    document.getElementById('s-mem').textContent = (s.memoryPercent).toFixed(1) + '%';
+    document.getElementById('s-mem-sub').textContent = fmt(s.memoryUsed) + ' / ' + fmt(s.memoryTotal);
+    document.getElementById('s-uptime').textContent = fmtUptime(s.uptime);
+    document.getElementById('s-projects').textContent = s.projectCount;
+    document.getElementById('s-running').textContent = s.runningCount + ' running';
+  } catch(e) {}
+}
+
+function fmt(bytes) {
+  if (bytes > 1e9) return (bytes/1e9).toFixed(1) + 'GB';
+  return (bytes/1e6).toFixed(0) + 'MB';
+}
+function fmtUptime(s) {
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
+  return h + 'h ' + m + 'm';
+}
+
+// ─── PROJECTS ────────────────────────────────────────────────
+async function loadProjects() {
+  try {
+    const projects = await api('GET', '/projects');
+    const list = document.getElementById('project-list');
+    const all = document.getElementById('all-projects');
+    list.innerHTML = '';
+    all.innerHTML = '';
+
+    if (!projects.length) {
+      all.innerHTML = '<p style="color:var(--muted);font-size:13px">No projects yet. Create one!</p>';
+    }
+
+    projects.forEach(p => {
+      const dot = p.status === 'running' ? 'running' : p.status === 'error' ? 'error' : '';
+      list.innerHTML += `<div class="sidebar-item" id="nav-proj-${p.id}" onclick="openProject('${p.id}')"><span class="dot ${dot}"></span>${p.name}</div>`;
+
+      all.innerHTML += `
+        <div style="background:var(--surface);border:1px solid var(--border);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:14px;margin-bottom:4px">${p.name} <span class="badge ${p.status}">${p.status}</span></div>
+            <div style="font-size:11px;color:var(--muted)">${p.runtime} · ${p.entryPoint}</div>
+          </div>
+          <button class="btn secondary sm" onclick="openProject('${p.id}')">Open →</button>
+        </div>`;
+    });
+  } catch(e) {}
+}
+
+async function openProject(id) {
+  try {
+    const p = await api('GET', '/projects/' + id);
+    currentProject = p;
+    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+    document.getElementById('nav-proj-' + id)?.classList.add('active');
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-project').classList.add('active');
+    document.getElementById('proj-name').textContent = p.name;
+    const sb = document.getElementById('proj-status');
+    sb.textContent = p.status; sb.className = 'badge ' + p.status;
+    switchTab('logs');
+  } catch(e) {}
+}
+
+async function projectAction(action) {
+  if (!currentProject) return;
+  try {
+    await api('POST', `/projects/${currentProject.id}/${action}`);
+    await new Promise(r => setTimeout(r, 600));
+    const p = await api('GET', '/projects/' + currentProject.id);
+    currentProject = p;
+    const sb = document.getElementById('proj-status');
+    sb.textContent = p.status; sb.className = 'badge ' + p.status;
+    loadProjects();
+    if (currentTab === 'logs') setTimeout(loadLogs, 1000);
+  } catch(e) { alert(e.message); }
+}
+
+async function deleteProject() {
+  if (!currentProject || !confirm(`Delete "${currentProject.name}"? This cannot be undone.`)) return;
+  try {
+    await api('DELETE', '/projects/' + currentProject.id);
+    currentProject = null;
+    loadProjects();
+    showPage('dashboard');
+  } catch(e) { alert(e.message); }
+}
+
+async function createProject() {
+  const name = document.getElementById('c-name').value.trim();
+  const runtime = document.getElementById('c-runtime').value;
+  const entry = document.getElementById('c-entry').value.trim() || (runtime === 'nodejs' ? 'index.js' : 'main.py');
+  const desc = document.getElementById('c-desc').value.trim();
+  const mem = parseInt(document.getElementById('c-mem').value) || 256;
+  if (!name) { document.getElementById('create-error').textContent = 'Name is required'; return; }
+  try {
+    const p = await api('POST', '/projects', { name, runtime, entryPoint: entry, description: desc || undefined, memoryLimitMb: mem });
+    await loadProjects();
+    openProject(p.id);
+    document.getElementById('c-name').value = '';
+    document.getElementById('c-desc').value = '';
+    document.getElementById('c-entry').value = '';
+  } catch(e) { document.getElementById('create-error').textContent = e.message; }
+}
+
+// ─── TABS ─────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  ['logs','files','env','terminal'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none';
+  });
+  document.querySelectorAll('.tab-inner').forEach((b, i) => {
+    b.classList.toggle('active', ['logs','files','env','terminal'][i] === tab);
+  });
+  if (tab === 'logs') loadLogs();
+  if (tab === 'files') loadFiles('/');
+  if (tab === 'env') loadEnv();
+}
+
+// ─── LOGS ─────────────────────────────────────────────────────
+async function loadLogs() {
+  if (!currentProject) return;
+  try {
+    const logs = await api('GET', `/projects/${currentProject.id}/logs?limit=100`);
+    const box = document.getElementById('log-box');
+    box.innerHTML = logs.map(l =>
+      `<div class="log-line ${l.level}">[${new Date(l.timestamp).toLocaleTimeString()}] ${esc(l.message)}</div>`
+    ).join('');
+    box.scrollTop = box.scrollHeight;
+  } catch(e) {}
+}
+
+// ─── FILES ────────────────────────────────────────────────────
+async function loadFiles(path) {
+  if (!currentProject) return;
+  currentFilePath = path;
+  document.getElementById('current-path').textContent = path;
+  closeEditor();
+  try {
+    const files = await api('GET', `/projects/${currentProject.id}/files?path=${encodeURIComponent(path)}`);
+    const list = document.getElementById('file-list');
+    let html = '';
+    if (path !== '/') html += `<div class="file-entry"><span class="name dir" onclick="loadFiles('${parentPath(path)}')">📁 ..</span></div>`;
+    files.forEach(f => {
+      if (f.isDirectory) {
+        html += `<div class="file-entry"><span class="name dir" onclick="loadFiles('${f.path}')">📁 ${esc(f.name)}/</span></div>`;
+      } else {
+        html += `<div class="file-entry">
+          <span class="name" onclick="openFile('${f.path}','${esc(f.name)}')")>📄 ${esc(f.name)}</span>
+          <span style="font-size:11px;color:var(--muted)">${f.size != null ? (f.size/1024).toFixed(1)+'KB' : ''}</span>
+        </div>`;
+      }
+    });
+    if (!files.length && path === '/') html = '<div style="padding:16px;color:var(--muted);font-size:13px">No files yet. Create one above.</div>';
+    list.innerHTML = html;
+  } catch(e) {}
+}
+
+async function openFile(path, name) {
+  try {
+    const data = await api('GET', `/projects/${currentProject.id}/files/read?path=${encodeURIComponent(path)}`);
+    editingFile = path;
+    document.getElementById('editor-filename').textContent = 'Editing: ' + name;
+    document.getElementById('editor-content').value = data.content;
+    document.getElementById('file-editor').style.display = '';
+  } catch(e) { alert(e.message); }
+}
+
+async function saveFile() {
+  if (!editingFile) return;
+  try {
+    await api('POST', `/projects/${currentProject.id}/files/write`, { path: editingFile, content: document.getElementById('editor-content').value });
+    closeEditor();
+    loadFiles(currentFilePath);
+  } catch(e) { alert(e.message); }
+}
+
+function closeEditor() { editingFile = null; document.getElementById('file-editor').style.display = 'none'; }
+
+async function createFile() {
+  const name = document.getElementById('new-file-name').value.trim();
+  if (!name) return;
+  const path = (currentFilePath === '/' ? '' : currentFilePath) + '/' + name;
+  try {
+    await api('POST', `/projects/${currentProject.id}/files/write`, { path, content: '' });
+    document.getElementById('new-file-name').value = '';
+    loadFiles(currentFilePath);
+    openFile(path, name);
+  } catch(e) { alert(e.message); }
+}
+
+function uploadFile() { document.getElementById('file-upload-input').click(); }
+
+async function handleFileUpload(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    const base64 = ev.target.result.split(',')[1];
+    const path = (currentFilePath === '/' ? '' : currentFilePath) + '/' + file.name;
+    try {
+      await api('POST', `/projects/${currentProject.id}/files/upload`, { path, content: base64, encoding: 'base64' });
+      loadFiles(currentFilePath);
+    } catch(err) { alert(err.message); }
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function parentPath(p) {
+  const parts = p.replace(/\/$/, '').split('/');
+  parts.pop();
+  return parts.join('/') || '/';
+}
+
+// ─── ENV ─────────────────────────────────────────────────────
+async function loadEnv() {
+  if (!currentProject) return;
+  try {
+    const env = await api('GET', `/projects/${currentProject.id}/env`);
+    const container = document.getElementById('env-rows');
+    container.innerHTML = '';
+    Object.entries(env).forEach(([k, v]) => addEnvRow(k, v));
+  } catch(e) {}
+}
+
+function addEnvRow(key = '', val = '') {
+  const row = document.createElement('div');
+  row.className = 'env-row';
+  row.innerHTML = `<input type="text" placeholder="KEY" value="${esc(key)}"><input type="text" placeholder="value" value="${esc(val)}"><button onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('env-rows').appendChild(row);
+}
+
+async function saveEnv() {
+  const rows = document.querySelectorAll('#env-rows .env-row');
+  const env = {};
+  rows.forEach(r => {
+    const [k, v] = r.querySelectorAll('input');
+    if (k.value.trim()) env[k.value.trim()] = v.value;
+  });
+  try {
+    await api('POST', `/projects/${currentProject.id}/env`, env);
+    const msg = document.getElementById('env-msg');
+    msg.style.color = 'var(--green)';
+    msg.textContent = '✓ Saved';
+    setTimeout(() => msg.textContent = '', 2000);
+  } catch(e) {
+    const msg = document.getElementById('env-msg');
+    msg.style.color = 'var(--red)';
+    msg.textContent = e.message;
+  }
+}
+
+// ─── TERMINAL ─────────────────────────────────────────────────
+async function runCmd() {
+  const input = document.getElementById('term-input');
+  const cmd = input.value.trim(); if (!cmd) return;
+  input.value = '';
+  const out = document.getElementById('term-output');
+  out.textContent += `$ ${cmd}\n`;
+  try {
+    const res = await api('POST', `/projects/${currentProject.id}/terminal/exec`, { command: cmd, timeout: 15000 });
+    if (res.output) out.textContent += res.output + '\n';
+    if (res.stderr) out.textContent += res.stderr + '\n';
+  } catch(e) { out.textContent += `Error: ${e.message}\n`; }
+  out.scrollTop = out.scrollHeight;
+}
+
+async function installPkgs() {
+  const input = document.getElementById('pkg-input');
+  const pkgs = input.value.trim().split(/\s+/).filter(Boolean);
+  if (!pkgs.length) return;
+  input.value = '';
+  const out = document.getElementById('term-output');
+  switchTab('terminal');
+  out.textContent += `Installing: ${pkgs.join(', ')}...\n`;
+  try {
+    const res = await api('POST', `/projects/${currentProject.id}/terminal/install`, { packages: pkgs, runtime: currentProject.runtime });
+    if (res.output) out.textContent += res.output + '\n';
+    out.textContent += `✓ Done\n`;
+  } catch(e) { out.textContent += `Error: ${e.message}\n`; }
+  out.scrollTop = out.scrollHeight;
+}
+
+// ─── UTILS ───────────────────────────────────────────────────
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Enter key for auth forms
+document.getElementById('l-pass').addEventListener('keydown', e => e.key === 'Enter' && doLogin());
+document.getElementById('r-pass').addEventListener('keydown', e => e.key === 'Enter' && doRegister());
+
+// Auto-refresh stats every 10s
+setInterval(() => { if (token) loadStats(); }, 10000);
+</script>
+</body>
+</html>
